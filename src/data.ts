@@ -69,4 +69,4 @@ export function generateRoomId(): string {
   const w = words[Math.floor(Math.random() * words.length)]
   const n = Math.floor(1000 + Math.random() * 9000)
   return `${w}-${n}`
-}
+} 
