@@ -69,9 +69,16 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers, history: [entry, ...history].slice(0, 60) })
   }
 
-  const btn = (onClick: () => void, label: string, style?: React.CSSProperties) => (
-    <button onClick={onClick} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', ...style }}>{label}</button>
-  )
+  async function resetPoints() {
+    if (!window.confirm('¿Resetear puntos a cero? El historial se mantiene.')) return
+    const updatedPlayers = players.map(p => ({ ...p, points: 0, streak: 0, totalEarned: 0, totalSpent: 0 }))
+    await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers })
+  }
+
+  async function resetHistory() {
+    if (!window.confirm('¿Borrar todo el historial?')) return
+    await update(ref(db, `rooms/${roomId}`), { history: [], pending: [] })
+  }
 
   const modal = (content: React.ReactNode) => (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200, padding: 20 }}>
@@ -111,7 +118,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     <div style={{ padding: '0 0 20px' }}>
       <div style={{ padding: '24px 20px 16px' }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>CouplePoints</h1>
-        <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>El hogar tiene reglas, ahora también tienen puntos.</p>
+        <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>El hogar tiene reglas, ahora también tiene puntos.</p>
       </div>
       <ValidateCards />
       <div style={{ display: 'flex', gap: 12, padding: '0 16px 16px' }}>
@@ -140,6 +147,14 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           </div>
         </div>
       </div>
+      <div style={{ padding: '0 16px 8px', display: 'flex', gap: 10 }}>
+        <button onClick={resetPoints} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
+          🔄 Resetear puntos
+        </button>
+        <button onClick={resetHistory} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}>
+          🗑️ Borrar historial
+        </button>
+      </div>
       {history.slice(0, 4).map(entry => {
         const player = players.find(p => p.id === entry.playerId)
         const isEarn = entry.type === 'earn'
@@ -154,28 +169,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
             <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
           </div>
         )
-      })},
-      <div style={{ padding: '16px 20px', display: 'flex', gap: 10 }}>
-  <button
-    onClick={async () => {
-      if (!window.confirm('¿Resetear puntos a cero? El historial se mantiene.')) return
-      const updatedPlayers = players.map(p => ({ ...p, points: 0, streak: 0, totalEarned: 0, totalSpent: 0 }))
-      await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers })
-    }}
-    style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}
-  >
-    🔄 Resetear puntos
-  </button>
-  <button
-    onClick={async () => {
-      if (!window.confirm('¿Borrar todo el historial?')) return
-      await update(ref(db, `rooms/${roomId}`), { history: [], pending: [] })
-    }}
-    style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}
-  >
-    🗑️ Borrar historial
-  </button>
-</div>
+      })}
       {history.length === 0 && toValidate.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 32px' }}>
           <p style={{ fontSize: 56, margin: '0 0 16px' }}>🎮</p>
@@ -215,7 +209,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
                 <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{task.name}</p>
                 <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{task.desc}</p>
               </div>
-              <span style={{ background: C.greenLight, color: C.green, padding: '4px 12px' }}>+{task.pts}</span>
+              <span style={{ background: C.greenLight, color: C.green, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px' }}>+{task.pts}</span>
             </button>
           ))}
         </div>
@@ -224,27 +218,27 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   )
 
   const renderSpend = () => (
-  <div style={{ padding: '0 0 20px' }}>
-    <div style={{ padding: '24px 20px 16px' }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Gastar puntos</h2>
-      <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Tienes <strong>{me.points} puntos</strong> disponibles</p>
+    <div style={{ padding: '0 0 20px' }}>
+      <div style={{ padding: '24px 20px 16px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Gastar puntos</h2>
+        <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Tienes <strong>{me.points} puntos</strong> disponibles</p>
+      </div>
+      <div style={{ padding: '0 16px' }}>
+        {REWARDS.map(r => {
+          const can = me.points >= r.cost
+          return (
+            <button key={r.id} onClick={() => can && setConfirmReward(r)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, border: `1px solid ${C.border}`, cursor: can ? 'pointer' : 'not-allowed', opacity: can ? 1 : 0.45, textAlign: 'left', fontFamily: 'inherit' }}>
+              <span style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{r.icon}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{r.name}</p>
+                <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{r.desc}</p>
+              </div>
+              <span style={{ background: can ? C.redLight : C.border, color: can ? C.red : C.textMut, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>-{r.cost}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
-    <div style={{ padding: '0 16px' }}>
-      {REWARDS.map(r => {
-        const can = me.points >= r.cost
-        return (
-          <button key={r.id} onClick={() => can && setConfirmReward(r)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, border: `1px solid ${C.border}`, cursor: can ? 'pointer' : 'not-allowed', opacity: can ? 1 : 0.45, textAlign: 'left', fontFamily: 'inherit' }}>
-            <span style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{r.icon}</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{r.name}</p>
-              <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{r.desc}</p>
-            </div>
-            <span style={{ background: can ? C.redLight : C.border, color: can ? C.red : C.textMut, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>-{r.cost}</span>
-          </button>
-        )
-      })}
-    </div>
-  </div>
   )
 
   const renderHistory = () => (
@@ -328,7 +322,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           <span style={{ fontSize: 22, fontWeight: 700, color: C.green }}>+{confirmTask.pts}</span>
         </div>
         <div style={{ width: '100%', background: C.amberLight, borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#BA7517', textAlign: 'center' }}>Los puntos se añaden solo cuando tu pareja confirme.</div>
-        {btn(async () => { await submitTask(confirmTask); setSent(confirmTask); setConfirmTask(null) }, 'Enviar para validar')}
+        <button onClick={async () => { await submitTask(confirmTask); setSent(confirmTask); setConfirmTask(null) }} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Enviar para validar</button>
         <button onClick={() => setConfirmTask(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
@@ -336,14 +330,14 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <span style={{ fontSize: 64 }}>📤</span>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.purple, margin: 0 }}>¡Enviado!</h3>
         <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>Le has pedido a {other.emoji} {other.name} que valide "{sent.name}". Recibirás {sent.pts} puntos cuando lo confirme.</p>
-        {btn(() => setSent(null), 'Entendido')}
+        <button onClick={() => setSent(null)} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Entendido</button>
       </>)}
 
       {confirmReward && modal(<>
         <span style={{ fontSize: 52 }}>{confirmReward.icon}</span>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{confirmReward.name}</h3>
         <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>Vas a gastar <strong>{confirmReward.cost} puntos</strong>. Te quedarán {me.points - confirmReward.cost} pts.</p>
-        {btn(async () => { await spendPoints(confirmReward); setSuccess(confirmReward); setConfirmReward(null) }, '¡Canjear ahora!')}
+        <button onClick={async () => { await spendPoints(confirmReward); setSuccess(confirmReward); setConfirmReward(null) }} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>¡Canjear ahora!</button>
         <button onClick={() => setConfirmReward(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
@@ -351,7 +345,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <span style={{ fontSize: 72 }}>{success.icon}</span>
         <h3 style={{ fontSize: 22, fontWeight: 700, color: C.purple, margin: 0 }}>¡Disfrutado!</h3>
         <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>Has canjeado "{success.name}". Te lo mereces.</p>
-        {btn(() => setSuccess(null), 'Perfecto')}
+        <button onClick={() => setSuccess(null)} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Perfecto</button>
       </>)}
     </div>
   )
