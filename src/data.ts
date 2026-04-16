@@ -12,7 +12,7 @@ export const TASKS: Task[] = [
   { id: 't3', name: 'Planchar', desc: 'Toda la ropa, bien doblada', pts: 20, icon: '👔', hard: true, category: 'home' },
   { id: 't4', name: 'Recoger y ordenar', desc: 'Toda la casa en condiciones', pts: 10, icon: '🧺', hard: false, category: 'home' },
   { id: 't5', name: 'Cocinar cena especial', desc: 'De verdad, no pasta de nuevo', pts: 18, icon: '🍳', hard: false, category: 'home' },
-  { id: 't6', name: 'Limpiar la nevera', desc: 'Esa cosa misteriosa del fondo', pts: 25, icon: '🧊', hard: true, category: 'home' },
+  { id: 't6', name: 'Fregar los platos', desc: 'Todos, incluida la sartén', pts: 8, icon: '🍽️', hard: false, category: 'home' },
   { id: 't7', name: 'Aspirar toda la casa', desc: 'Incluyendo debajo del sofá', pts: 14, icon: '🌀', hard: false, category: 'home' },
   { id: 't8', name: 'Poner la lavadora', desc: 'Ropa separada y programa correcto', pts: 5, icon: '🫧', hard: false, category: 'home' },
   { id: 't9', name: 'Tender la ropa', desc: 'Sin arrugarse y bien colocada', pts: 15, icon: '👕', hard: false, category: 'home' },
