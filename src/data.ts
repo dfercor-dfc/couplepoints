@@ -28,6 +28,18 @@ export const TASKS: Task[] = [
   { id: 't19', name: 'Gestión bancaria o papeleo', desc: 'Esa llamada que nadie quiere hacer', pts: 18, icon: '📋', hard: false, category: 'social' },
   { id: 't20', name: 'Gestionar facturas y seguros', desc: 'Comparar, llamar y resolver', pts: 20, icon: '💶', hard: false, category: 'social' },
   { id: 't21', name: 'Llevar/recoger niños a actividades', desc: 'Puntual y sin refunfuñar', pts: 10, icon: '🚌', hard: false, category: 'social' },
+  { id: 't22', name: 'Visita a suegros sin ocasión especial', desc: 'Sonriendo y aguantando', pts: 20, icon: '🏠', hard: true, category: 'social' },
+  { id: 't23', name: 'Llevar a los niños al médico solo', desc: 'Sin el otro y sin agobiarse', pts: 18, icon: '👨‍⚕️', hard: false, category: 'social' },
+  { id: 't24', name: 'Reunión de vecinos', desc: 'Escuchando quejas ajenas con calma', pts: 15, icon: '🏢', hard: false, category: 'social' },
+  { id: 't25', name: 'Hacer de chófer sin quejarse', desc: 'En un plan que no te apetece nada', pts: 12, icon: '🚕', hard: false, category: 'social' },
+  { id: 't26', name: 'Gestionar una queja o reclamación', desc: 'Llamadas, formularios y paciencia', pts: 20, icon: '📞', hard: false, category: 'social' },
+  { id: 't27', name: 'Ir a un evento escolar aburrido', desc: 'Aplaudiendo como si fuera Broadway', pts: 15, icon: '🎭', hard: false, category: 'social' },
+  { id: 't28', name: 'Acompañar de compras sin quejarse', desc: 'Sin mirar el móvil ni suspirar', pts: 18, icon: '🛍️', hard: false, category: 'social' },
+  { id: 't29', name: 'Limpiar trastero o garaje', desc: 'Organizar el caos acumulado', pts: 25, icon: '📦', hard: true, category: 'social' },
+  { id: 't30', name: 'Llamar al seguro/fontanero/electricista', desc: 'La llamada que nadie quiere hacer', pts: 15, icon: '🔌', hard: false, category: 'social' },
+  { id: 't31', name: 'Hacer de canguro de sobrinos/nietos', desc: 'Con energía y sin quejarse', pts: 20, icon: '👶', hard: false, category: 'social' },
+  { id: 't32', name: 'Plan con amigos de tu pareja', desc: 'Gente que no conoces, sonriendo igual', pts: 22, icon: '👥', hard: true, category: 'social' },
+  { id: 't33', name: 'Ir a una boda o evento de compromiso', desc: 'Traje, discursos y todo el pack', pts: 30, icon: '💒', hard: true, category: 'social' },
 ]
 
 export const REWARDS: Reward[] = [
