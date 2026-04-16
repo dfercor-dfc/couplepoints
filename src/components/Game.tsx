@@ -154,7 +154,28 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
             <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
           </div>
         )
-      })}
+      })},
+      <div style={{ padding: '16px 20px', display: 'flex', gap: 10 }}>
+  <button
+    onClick={async () => {
+      if (!window.confirm('¿Resetear puntos a cero? El historial se mantiene.')) return
+      const updatedPlayers = players.map(p => ({ ...p, points: 0, streak: 0, totalEarned: 0, totalSpent: 0 }))
+      await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers })
+    }}
+    style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}
+  >
+    🔄 Resetear puntos
+  </button>
+  <button
+    onClick={async () => {
+      if (!window.confirm('¿Borrar todo el historial?')) return
+      await update(ref(db, `rooms/${roomId}`), { history: [], pending: [] })
+    }}
+    style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}
+  >
+    🗑️ Borrar historial
+  </button>
+</div>
       {history.length === 0 && toValidate.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 32px' }}>
           <p style={{ fontSize: 56, margin: '0 0 16px' }}>🎮</p>
