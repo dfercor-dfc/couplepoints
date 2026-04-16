@@ -111,7 +111,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     <div style={{ padding: '0 0 20px' }}>
       <div style={{ padding: '24px 20px 16px' }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>CouplePoints</h1>
-        <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>El hogar tiene reglas. Ahora tienen puntos.</p>
+        <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>El hogar tiene reglas, ahora también tienen puntos.</p>
       </div>
       <ValidateCards />
       <div style={{ display: 'flex', gap: 12, padding: '0 16px 16px' }}>
