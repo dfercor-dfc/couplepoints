@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db, type RoomState, type PendingTask, type HistoryEntry, type Player } from '../firebase'
+import { db, type RoomState, type PendingTask, type HistoryEntry } from '../firebase'
 import { ref, update } from 'firebase/database'
 import { TASKS, REWARDS, type Task, type Reward } from '../data'
 
@@ -25,6 +25,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [confirmReward, setConfirmReward] = useState<Reward | null>(null)
   const [sent, setSent] = useState<Task | null>(null)
   const [success, setSuccess] = useState<Reward | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState<'points' | 'history' | null>(null)
 
   const { players, pending = [], history = [] } = roomState
   const me = players[myPlayer]
@@ -69,15 +70,15 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers, history: [entry, ...history].slice(0, 60) })
   }
 
-  async function resetPoints() {
-    if (!window.confirm('¿Resetear puntos a cero? El historial se mantiene.')) return
+  async function doResetPoints() {
     const updatedPlayers = players.map(p => ({ ...p, points: 0, streak: 0, totalEarned: 0, totalSpent: 0 }))
     await update(ref(db, `rooms/${roomId}`), { players: updatedPlayers })
+    setShowResetConfirm(null)
   }
 
-  async function resetHistory() {
-    if (!window.confirm('¿Borrar todo el historial?')) return
+  async function doResetHistory() {
     await update(ref(db, `rooms/${roomId}`), { history: [], pending: [] })
+    setShowResetConfirm(null)
   }
 
   const modal = (content: React.ReactNode) => (
@@ -147,11 +148,11 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           </div>
         </div>
       </div>
-      <div style={{ padding: '0 16px 8px', display: 'flex', gap: 10 }}>
-        <button onClick={resetPoints} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
+      <div style={{ padding: '0 16px 16px', display: 'flex', gap: 10 }}>
+        <button onClick={() => setShowResetConfirm('points')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
           🔄 Resetear puntos
         </button>
-        <button onClick={resetHistory} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={() => setShowResetConfirm('history')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}>
           🗑️ Borrar historial
         </button>
       </div>
@@ -312,6 +313,22 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           </button>
         ))}
       </nav>
+
+      {showResetConfirm === 'points' && modal(<>
+        <span style={{ fontSize: 52 }}>🔄</span>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>Resetear puntos</h3>
+        <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>Se pondrán a cero los puntos de los dos jugadores. El historial se mantiene.</p>
+        <button onClick={doResetPoints} style={{ width: '100%', padding: 14, background: C.red, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Sí, resetear</button>
+        <button onClick={() => setShowResetConfirm(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
+      </>)}
+
+      {showResetConfirm === 'history' && modal(<>
+        <span style={{ fontSize: 52 }}>🗑️</span>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>Borrar historial</h3>
+        <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>Se borrará todo el historial y las tareas pendientes. Los puntos se mantienen.</p>
+        <button onClick={doResetHistory} style={{ width: '100%', padding: 14, background: C.red, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Sí, borrar</button>
+        <button onClick={() => setShowResetConfirm(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
+      </>)}
 
       {confirmTask && modal(<>
         <span style={{ fontSize: 52 }}>{confirmTask.icon}</span>
