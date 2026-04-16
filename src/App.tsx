@@ -9,8 +9,10 @@ export default function App() {
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
+    setReady(true)
     const saved = localStorage.getItem('cp_session')
     if (saved) {
       try {
@@ -30,6 +32,8 @@ export default function App() {
     return () => unsub()
   }, [roomId])
 
+  if (!ready) return null
+
   const handleCreateRoom = async (name1: string, name2: string, emoji1: string, emoji2: string) => {
     const { generateRoomId } = await import('./data')
     const id = generateRoomId()
@@ -43,7 +47,7 @@ export default function App() {
       setRoomId(id)
       setMyPlayer(0)
       localStorage.setItem('cp_session', JSON.stringify({ roomId: id, myPlayer: 0 }))
-    } catch (e) {
+    } catch {
       setError('Error al crear la sala. Revisa tu conexión.')
       setLoading(false)
     }
@@ -63,7 +67,7 @@ export default function App() {
       setRoomId(clean)
       setMyPlayer(playerIdx)
       localStorage.setItem('cp_session', JSON.stringify({ roomId: clean, myPlayer: playerIdx }))
-    } catch (e) {
+    } catch {
       setError('Error al conectar. Revisa tu conexión.')
       setLoading(false)
     }
