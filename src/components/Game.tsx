@@ -194,7 +194,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
                 <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{task.name}</p>
                 <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{task.desc}</p>
               </div>
-              <span style={{ background: task.hard ? C.redLight : C.greenLight, color: task.hard ? C.red : C.green, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px' }}>+{task.pts}</span>
+              <span style={{ background: C.greenLight, color: C.green, padding: '4px 12px' }}>+{task.pts}</span>
             </button>
           ))}
         </div>
