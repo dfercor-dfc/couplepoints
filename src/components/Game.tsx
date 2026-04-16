@@ -203,26 +203,27 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   )
 
   const renderSpend = () => (
-    <div style={{ padding: '0 0 20px' }}>
-      <div style={{ padding: '24px 20px 16px' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Gastar puntos</h2>
-        <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Tienes <strong>{me.points} puntos</strong> disponibles</p>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: '0 16px' }}>
-        {REWARDS.map(r => {
-          const can = me.points >= r.cost
-          return (
-            <button key={r.id} onClick={() => can && setConfirmReward(r)} style={{ background: 'white', borderRadius: 16, padding: '16px 12px', border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: can ? 'pointer' : 'not-allowed', opacity: can ? 1 : 0.45, fontFamily: 'inherit', textAlign: 'center' }}>
-              <span style={{ fontSize: 34, marginBottom: 4 }}>{r.icon}</span>
-              <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{r.name}</p>
-              <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 6px', lineHeight: 1.4 }}>{r.desc}</p>
-              <span style={{ background: can ? C.purpleLight : C.border, color: can ? C.purple : C.textMut, fontSize: 12, fontWeight: 700, borderRadius: 20, padding: '4px 10px' }}>{r.cost} pts</span>
-              {!can && <p style={{ fontSize: 10, color: C.red, margin: '4px 0 0' }}>Faltan {r.cost - me.points} pts</p>}
-            </button>
-          )
-        })}
-      </div>
+  <div style={{ padding: '0 0 20px' }}>
+    <div style={{ padding: '24px 20px 16px' }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>Gastar puntos</h2>
+      <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Tienes <strong>{me.points} puntos</strong> disponibles</p>
     </div>
+    <div style={{ padding: '0 16px' }}>
+      {REWARDS.map(r => {
+        const can = me.points >= r.cost
+        return (
+          <button key={r.id} onClick={() => can && setConfirmReward(r)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, border: `1px solid ${C.border}`, cursor: can ? 'pointer' : 'not-allowed', opacity: can ? 1 : 0.45, textAlign: 'left', fontFamily: 'inherit' }}>
+            <span style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{r.icon}</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{r.name}</p>
+              <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{r.desc}</p>
+            </div>
+            <span style={{ background: can ? C.redLight : C.border, color: can ? C.red : C.textMut, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>-{r.cost}</span>
+          </button>
+        )
+      })}
+    </div>
+  </div>
   )
 
   const renderHistory = () => (
