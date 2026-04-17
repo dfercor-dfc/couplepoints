@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db, type RoomState, type PendingTask, type HistoryEntry, type Notification } from '../firebase'
+import { db, type RoomState, type PendingTask, type HistoryEntry, type Notification, type CustomTask, type NegotiationRound } from '../firebase'
 import { ref, update } from 'firebase/database'
 import { TASKS, REWARDS, type Task, type Reward } from '../data'
 
@@ -19,6 +19,8 @@ const C = {
   text: '#1A1A2E', textSec: '#6B6B8A', textMut: '#A0A0B8', border: '#EBEBF5',
 }
 
+const TASK_EMOJIS = ['🏠','🧹','🛒','🍳','🚗','🔧','📋','🌿','🐕','🧺','👶','🎂','🏋️','📚','🎨','🛁','🌅','🍽️','🎯','💡']
+
 export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [tab, setTab] = useState<Tab>('home')
   const [confirmTask, setConfirmTask] = useState<Task | null>(null)
@@ -30,12 +32,27 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [validateNote, setValidateNote] = useState('')
   const [validateAction, setValidateAction] = useState<'approve' | 'reject' | null>(null)
 
-  const { players, pending = [], history = [], notifications = [] } = roomState
+  // Custom task creation
+  const [showCreateTask, setShowCreateTask] = useState(false)
+  const [newTaskName, setNewTaskName] = useState('')
+  const [newTaskDesc, setNewTaskDesc] = useState('')
+  const [newTaskPts, setNewTaskPts] = useState('15')
+  const [newTaskIcon, setNewTaskIcon] = useState('🏠')
+  const [showIconPicker, setShowIconPicker] = useState(false)
+
+  // Negotiation
+  const [negotiatingTask, setNegotiatingTask] = useState<CustomTask | null>(null)
+  const [counterPts, setCounterPts] = useState('')
+  const [counterMsg, setCounterMsg] = useState('')
+
+  const { players, pending = [], history = [], notifications = [], customTasks = [] } = roomState
   const me = players[myPlayer]
   const other = players[myPlayer === 0 ? 1 : 0]
   const toValidate = pending.filter(p => p.pendingFor === myPlayer && p.status === 'pending')
   const myPending = pending.filter(p => p.requestedBy === myPlayer && p.status === 'pending')
   const myNotifications = notifications.filter(n => n.forPlayer === myPlayer && !n.read)
+  const myNegotiations = customTasks.filter(t => t.status === 'negotiating' && t.pendingFor === myPlayer)
+  const acceptedCustomTasks = customTasks.filter(t => t.status === 'accepted')
 
   async function submitTask(task: Task) {
     const newItem: PendingTask = {
@@ -45,6 +62,90 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
       timestamp: Date.now(), status: 'pending',
     }
     await update(ref(db, `rooms/${roomId}`), { pending: [newItem, ...pending] })
+  }
+
+  async function submitCustomTask(task: CustomTask) {
+    const newItem: PendingTask = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      taskName: task.name, taskIcon: task.icon, pts: task.pts,
+      requestedBy: myPlayer, pendingFor: myPlayer === 0 ? 1 : 0,
+      timestamp: Date.now(), status: 'pending',
+    }
+    await update(ref(db, `rooms/${roomId}`), { pending: [newItem, ...pending] })
+  }
+
+  async function createCustomTask() {
+    if (!newTaskName.trim() || !newTaskPts) return
+    const otherId = myPlayer === 0 ? 1 : 0
+    const task: CustomTask = {
+      id: `ct-${Date.now()}`,
+      name: newTaskName.trim(),
+      desc: newTaskDesc.trim() || 'Tarea personalizada',
+      pts: parseInt(newTaskPts),
+      icon: newTaskIcon,
+      createdBy: myPlayer,
+      status: 'negotiating',
+      currentPts: parseInt(newTaskPts),
+      pendingFor: otherId,
+      rounds: [{ proposedBy: myPlayer, pts: parseInt(newTaskPts), timestamp: Date.now() }]
+    }
+    const notif: Notification = {
+      id: `n-${Date.now()}`, forPlayer: otherId, type: 'task_negotiation',
+      taskName: task.name, pts: task.pts, timestamp: Date.now(), read: false
+    }
+    await update(ref(db, `rooms/${roomId}`), {
+      customTasks: [task, ...customTasks],
+      notifications: [notif, ...notifications].slice(0, 20)
+    })
+    setShowCreateTask(false)
+    setNewTaskName('')
+    setNewTaskDesc('')
+    setNewTaskPts('15')
+    setNewTaskIcon('🏠')
+  }
+
+  async function acceptNegotiation(task: CustomTask) {
+    const updated = customTasks.map(t => t.id === task.id ? { ...t, status: 'accepted', pts: task.currentPts } : t)
+    const notif: Notification = {
+      id: `n-${Date.now()}`, forPlayer: task.createdBy === myPlayer ? myPlayer === 0 ? 1 : 0 : task.createdBy,
+      type: 'approved', taskName: task.name, pts: task.currentPts, timestamp: Date.now(), read: false,
+      note: `Tarea aceptada con ${task.currentPts} puntos ✓`
+    }
+    await update(ref(db, `rooms/${roomId}`), {
+      customTasks: updated,
+      notifications: [notif, ...notifications].slice(0, 20)
+    })
+    setNegotiatingTask(null)
+  }
+
+  async function counterPropose(task: CustomTask) {
+    if (!counterPts) return
+    const pts = parseInt(counterPts)
+    const otherId = myPlayer === 0 ? 1 : 0
+    const newRound: NegotiationRound = { proposedBy: myPlayer, pts, timestamp: Date.now(), message: counterMsg.trim() || undefined }
+    const updatedTask: CustomTask = {
+      ...task, currentPts: pts, pendingFor: otherId,
+      rounds: [...task.rounds, newRound]
+    }
+    const notif: Notification = {
+      id: `n-${Date.now()}`, forPlayer: otherId, type: 'task_negotiation',
+      taskName: task.name, pts, timestamp: Date.now(), read: false,
+      note: counterMsg.trim() || undefined
+    }
+    const updated = customTasks.map(t => t.id === task.id ? updatedTask : t)
+    await update(ref(db, `rooms/${roomId}`), {
+      customTasks: updated,
+      notifications: [notif, ...notifications].slice(0, 20)
+    })
+    setNegotiatingTask(null)
+    setCounterPts('')
+    setCounterMsg('')
+  }
+
+  async function rejectNegotiation(task: CustomTask) {
+    const updated = customTasks.map(t => t.id === task.id ? { ...t, status: 'rejected' } : t)
+    await update(ref(db, `rooms/${roomId}`), { customTasks: updated })
+    setNegotiatingTask(null)
   }
 
   async function confirmValidate() {
@@ -95,7 +196,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
 
   const modal = (content: React.ReactNode) => (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200, padding: 20 }}>
-      <div style={{ background: 'white', borderRadius: 24, padding: 28, width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: 'white', borderRadius: 24, padding: 28, width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxHeight: '90vh', overflowY: 'auto' }}>
         {content}
       </div>
     </div>
@@ -141,7 +242,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     if (myNotifications.length === 0) return null
     return (
       <div style={{ margin: '0 16px 14px' }}>
-        {myNotifications.map(n => (
+        {myNotifications.filter(n => n.type !== 'task_negotiation').map(n => (
           <div key={n.id} style={{ background: n.type === 'approved' ? C.greenLight : C.redLight, border: `1.5px solid ${n.type === 'approved' ? C.green : C.red}`, borderRadius: 14, padding: 14, marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 28 }}>{n.type === 'approved' ? '✅' : '❌'}</span>
@@ -187,6 +288,49 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     </>
   )
 
+  const NegotiationCards = () => (
+    <>
+      {myNegotiations.length > 0 && (
+        <div style={{ margin: '0 16px 14px', background: C.purpleLight, border: `1.5px solid ${C.purple}`, borderRadius: 16, padding: 12 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: C.purple, margin: '0 0 10px' }}>🤝 {other.emoji} {other.name} propone una tarea</p>
+          {myNegotiations.map(task => {
+            const lastRound = task.rounds[task.rounds.length - 1]
+            const roundNum = task.rounds.length
+            return (
+              <div key={task.id} style={{ background: 'white', borderRadius: 10, padding: 12, marginBottom: 6, border: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 24 }}>{task.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{task.name}</p>
+                    <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{task.desc}</p>
+                  </div>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: C.purple }}>{task.currentPts} pts</span>
+                </div>
+                {lastRound.message && (
+                  <p style={{ fontSize: 12, color: C.textSec, fontStyle: 'italic', margin: '0 0 8px' }}>💬 "{lastRound.message}"</p>
+                )}
+                <p style={{ fontSize: 11, color: C.textMut, margin: '0 0 8px' }}>Ronda {roundNum} de 3</p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {roundNum < 3 && (
+                    <button onClick={() => { setNegotiatingTask(task); setCounterPts(String(task.currentPts)); setCounterMsg('') }} style={{ flex: 1, padding: '8px 4px', background: C.amberLight, border: `1px solid ${C.amber}`, borderRadius: 10, fontSize: 12, fontWeight: 600, color: C.amber, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      🔄 Contraproponer
+                    </button>
+                  )}
+                  <button onClick={() => rejectNegotiation(task)} style={{ flex: 1, padding: '8px 4px', background: C.redLight, border: `1px solid ${C.red}`, borderRadius: 10, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✕ Rechazar
+                  </button>
+                  <button onClick={() => acceptNegotiation(task)} style={{ flex: 1, padding: '8px 4px', background: C.greenLight, border: `1px solid ${C.green}`, borderRadius: 10, fontSize: 12, fontWeight: 600, color: C.green, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✓ Aceptar
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+
   const MyPendingCards = () => (
     <>
       {myPending.length > 0 && (
@@ -212,6 +356,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
       </div>
       <NotificationBanner />
       <ValidateCards />
+      <NegotiationCards />
       <MyPendingCards />
       <div style={{ display: 'flex', gap: 12, padding: '0 16px 16px' }}>
         {players.map(p => (
@@ -266,7 +411,33 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Pide validación a {other.emoji} {other.name}</p>
       </div>
       <ValidateCards />
+      <NegotiationCards />
       <MyPendingCards />
+
+      {/* Tareas personalizadas aceptadas */}
+      {acceptedCustomTasks.length > 0 && (
+        <div style={{ padding: '0 16px 14px' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMut, letterSpacing: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>TAREAS NEGOCIADAS ⭐</p>
+          {acceptedCustomTasks.map(task => (
+            <button key={task.id} onClick={() => setConfirmTask({ id: task.id, name: task.name, desc: task.desc, pts: task.pts, icon: task.icon, hard: false, category: 'home' })} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, border: `1.5px solid ${C.purple}`, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+              <span style={{ fontSize: 26, width: 36, textAlign: 'center' }}>{task.icon}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{task.name}</p>
+                <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>{task.desc}</p>
+              </div>
+              <span style={{ background: C.purpleLight, color: C.purple, fontSize: 13, fontWeight: 700, borderRadius: 20, padding: '4px 12px' }}>+{task.pts}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Botón crear tarea */}
+      <div style={{ padding: '0 16px 14px' }}>
+        <button onClick={() => setShowCreateTask(true)} style={{ width: '100%', padding: '14px', background: C.purpleLight, border: `1.5px dashed ${C.purple}`, borderRadius: 14, fontSize: 14, fontWeight: 600, color: C.purple, cursor: 'pointer', fontFamily: 'inherit' }}>
+          ✚ Proponer tarea personalizada
+        </button>
+      </div>
+
       {[{ label: 'TAREAS DEL HOGAR', tasks: homeTasks }, { label: 'PLANES INCÓMODOS', tasks: socialTasks }].map(({ label, tasks }) => (
         <div key={label} style={{ padding: '0 16px 14px' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: C.textMut, letterSpacing: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>{label}</p>
@@ -377,13 +548,59 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 4px', fontFamily: 'inherit' }}>
             <span style={{ fontSize: 22, position: 'relative', display: 'inline-block' }}>
               {t.icon}
-              {t.id === 'earn' && toValidate.length > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.amber, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{toValidate.length}</span>}
-              {t.id === 'home' && myNotifications.length > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.green, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{myNotifications.length}</span>}
+              {t.id === 'earn' && (toValidate.length + myNegotiations.length) > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.amber, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{toValidate.length + myNegotiations.length}</span>}
+              {t.id === 'home' && myNotifications.filter(n => n.type !== 'task_negotiation').length > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.green, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{myNotifications.filter(n => n.type !== 'task_negotiation').length}</span>}
             </span>
             <span style={{ fontSize: 10, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? C.purple : C.textMut }}>{t.label}</span>
           </button>
         ))}
       </nav>
+
+      {/* Modal crear tarea personalizada */}
+      {showCreateTask && modal(<>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>Proponer tarea</h3>
+        <p style={{ fontSize: 13, color: C.textSec, margin: 0, textAlign: 'center' }}>Propón una tarea y negocia los puntos con {other.emoji} {other.name}</p>
+        <button onClick={() => setShowIconPicker(!showIconPicker)} style={{ fontSize: 48, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: '12px 20px', cursor: 'pointer' }}>{newTaskIcon}</button>
+        {showIconPicker && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', background: C.bg, borderRadius: 12, padding: 12, width: '100%' }}>
+            {TASK_EMOJIS.map(e => (
+              <button key={e} onClick={() => { setNewTaskIcon(e); setShowIconPicker(false) }} style={{ fontSize: 24, background: 'white', border: `1px solid ${C.border}`, borderRadius: 10, padding: 8, cursor: 'pointer' }}>{e}</button>
+            ))}
+          </div>
+        )}
+        <input value={newTaskName} onChange={e => setNewTaskName(e.target.value)} placeholder="Nombre de la tarea" maxLength={40} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+        <input value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} placeholder="Descripción (opcional)" maxLength={60} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+        <div style={{ width: '100%' }}>
+          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>Puntos que propones</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[5, 10, 15, 20, 25, 30].map(pts => (
+              <button key={pts} onClick={() => setNewTaskPts(String(pts))} style={{ flex: 1, padding: '8px 4px', background: newTaskPts === String(pts) ? C.purple : 'white', border: `1px solid ${newTaskPts === String(pts) ? C.purple : C.border}`, borderRadius: 10, fontSize: 13, fontWeight: 600, color: newTaskPts === String(pts) ? 'white' : C.textSec, cursor: 'pointer', fontFamily: 'inherit' }}>{pts}</button>
+            ))}
+          </div>
+          <input value={newTaskPts} onChange={e => setNewTaskPts(e.target.value.replace(/\D/g, ''))} placeholder="O escribe otro número" style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, marginTop: 8 }} />
+        </div>
+        <button onClick={createCustomTask} disabled={!newTaskName.trim() || !newTaskPts} style={{ width: '100%', padding: 14, background: C.purple, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !newTaskName.trim() || !newTaskPts ? 0.5 : 1 }}>Enviar propuesta</button>
+        <button onClick={() => setShowCreateTask(false)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
+      </>)}
+
+      {/* Modal contrapropuesta */}
+      {negotiatingTask && modal(<>
+        <span style={{ fontSize: 52 }}>{negotiatingTask.icon}</span>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{negotiatingTask.name}</h3>
+        <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>{other.emoji} {other.name} propone <strong>{negotiatingTask.currentPts} puntos</strong>. ¿Cuánto propones tú?</p>
+        <div style={{ width: '100%' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {[5, 10, 15, 20, 25, 30].map(pts => (
+              <button key={pts} onClick={() => setCounterPts(String(pts))} style={{ flex: 1, padding: '8px 4px', background: counterPts === String(pts) ? C.purple : 'white', border: `1px solid ${counterPts === String(pts) ? C.purple : C.border}`, borderRadius: 10, fontSize: 13, fontWeight: 600, color: counterPts === String(pts) ? 'white' : C.textSec, cursor: 'pointer', fontFamily: 'inherit' }}>{pts}</button>
+            ))}
+          </div>
+          <input value={counterPts} onChange={e => setCounterPts(e.target.value.replace(/\D/g, ''))} placeholder="O escribe otro número" style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+        </div>
+        <textarea value={counterMsg} onChange={e => setCounterMsg(e.target.value)} placeholder="Mensaje opcional..." maxLength={80} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const }} />
+        <p style={{ fontSize: 11, color: C.textMut, margin: 0 }}>Ronda {negotiatingTask.rounds.length} de 3 — después se cancela automáticamente</p>
+        <button onClick={() => counterPropose(negotiatingTask)} disabled={!counterPts} style={{ width: '100%', padding: 14, background: C.amber, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !counterPts ? 0.5 : 1 }}>Enviar contrapropuesta</button>
+        <button onClick={() => setNegotiatingTask(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
+      </>)}
 
       {/* Modal validar con nota */}
       {validateItem && modal(<>
@@ -398,14 +615,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         </div>
         <div style={{ width: '100%' }}>
           <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Añade un comentario (opcional)</p>
-          <textarea
-            value={validateNote}
-            onChange={e => setValidateNote(e.target.value)}
-            placeholder={validateAction === 'approve' ? 'Ej: Muy bien hecho, gracias 😊' : 'Ej: La sartén seguía sucia 😅'}
-            maxLength={100}
-            rows={2}
-            style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box', color: C.text }}
-          />
+          <textarea value={validateNote} onChange={e => setValidateNote(e.target.value)} placeholder={validateAction === 'approve' ? 'Ej: Muy bien hecho 😊' : 'Ej: La sartén seguía sucia 😅'} maxLength={100} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const, color: C.text }} />
         </div>
         <button onClick={confirmValidate} style={{ width: '100%', padding: 14, background: validateAction === 'approve' ? C.green : C.red, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           {validateAction === 'approve' ? '✓ Aprobar tarea' : '✕ Rechazar tarea'}
