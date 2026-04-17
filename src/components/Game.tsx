@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db, type RoomState, type PendingTask, type HistoryEntry } from '../firebase'
+import { db, type RoomState, type PendingTask, type HistoryEntry, type Notification } from '../firebase'
 import { ref, update } from 'firebase/database'
 import { TASKS, REWARDS, type Task, type Reward } from '../data'
 
@@ -27,11 +27,12 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [success, setSuccess] = useState<Reward | null>(null)
   const [showResetConfirm, setShowResetConfirm] = useState<'points' | 'history' | null>(null)
 
-  const { players, pending = [], history = [] } = roomState
+  const { players, pending = [], history = [], notifications = [] } = roomState
   const me = players[myPlayer]
   const other = players[myPlayer === 0 ? 1 : 0]
   const toValidate = pending.filter(p => p.pendingFor === myPlayer && p.status === 'pending')
   const myPending = pending.filter(p => p.requestedBy === myPlayer && p.status === 'pending')
+  const myNotifications = notifications.filter(n => n.forPlayer === myPlayer && !n.read)
 
   async function submitTask(task: Task) {
     const newItem: PendingTask = {
@@ -51,7 +52,12 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
       ? { ...p, points: p.points + item.pts, streak: (p.streak ?? 0) + 1, totalEarned: (p.totalEarned ?? 0) + item.pts }
       : p)
     const entry: HistoryEntry = { id: Date.now().toString(), type: 'earn', playerId: item.requestedBy, label: item.taskName, pts: item.pts, timestamp: Date.now(), validated: true }
-    await update(ref(db, `rooms/${roomId}`), { pending: updatedPending, players: updatedPlayers, history: [entry, ...history].slice(0, 60) })
+    const notif: Notification = { id: `n-${Date.now()}`, forPlayer: item.requestedBy, type: 'approved', taskName: item.taskName, pts: item.pts, timestamp: Date.now(), read: false }
+    await update(ref(db, `rooms/${roomId}`), {
+      pending: updatedPending, players: updatedPlayers,
+      history: [entry, ...history].slice(0, 60),
+      notifications: [notif, ...notifications].slice(0, 20)
+    })
   }
 
   async function rejectTask(id: string) {
@@ -59,7 +65,17 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     if (!item) return
     const updatedPending = pending.map(p => p.id === id ? { ...p, status: 'rejected' } : p)
     const entry: HistoryEntry = { id: Date.now().toString(), type: 'rejected', playerId: item.requestedBy, label: item.taskName, pts: item.pts, timestamp: Date.now() }
-    await update(ref(db, `rooms/${roomId}`), { pending: updatedPending, history: [entry, ...history].slice(0, 60) })
+    const notif: Notification = { id: `n-${Date.now()}`, forPlayer: item.requestedBy, type: 'rejected', taskName: item.taskName, pts: item.pts, timestamp: Date.now(), read: false }
+    await update(ref(db, `rooms/${roomId}`), {
+      pending: updatedPending,
+      history: [entry, ...history].slice(0, 60),
+      notifications: [notif, ...notifications].slice(0, 20)
+    })
+  }
+
+  async function dismissNotifications() {
+    const updated = notifications.map(n => n.forPlayer === myPlayer ? { ...n, read: true } : n)
+    await update(ref(db, `rooms/${roomId}`), { notifications: updated })
   }
 
   async function spendPoints(reward: Reward) {
@@ -77,7 +93,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   }
 
   async function doResetHistory() {
-    await update(ref(db, `rooms/${roomId}`), { history: [], pending: [] })
+    await update(ref(db, `rooms/${roomId}`), { history: [], pending: [], notifications: [] })
     setShowResetConfirm(null)
   }
 
@@ -101,7 +117,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 20 }}>{p.emoji}</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: 1 }}>{p.name}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.purple }}>{p.points ?? 0} pts disponibles</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.purple }}>{p.points ?? 0} pts</span>
         </div>
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -121,6 +137,28 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
             <div style={{ height: 8, background: C.red, borderRadius: 4, width: `${pctSpent}%`, transition: 'width 0.4s' }} />
           </div>
         </div>
+      </div>
+    )
+  }
+
+  const NotificationBanner = () => {
+    if (myNotifications.length === 0) return null
+    return (
+      <div style={{ margin: '0 16px 14px', borderRadius: 16, overflow: 'hidden' }}>
+        {myNotifications.map(n => (
+          <div key={n.id} style={{ background: n.type === 'approved' ? C.greenLight : C.redLight, border: `1.5px solid ${n.type === 'approved' ? C.green : C.red}`, borderRadius: 14, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 28 }}>{n.type === 'approved' ? '✅' : '❌'}</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: n.type === 'approved' ? C.green : C.red, margin: 0 }}>
+                {n.type === 'approved' ? `¡${other.name} aprobó tu tarea!` : `${other.name} rechazó tu tarea`}
+              </p>
+              <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>
+                {n.taskName} · {n.type === 'approved' ? `+${n.pts} puntos` : 'sin puntos'}
+              </p>
+            </div>
+            <button onClick={dismissNotifications} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: C.textMut, padding: 4 }}>✕</button>
+          </div>
+        ))}
       </div>
     )
   }
@@ -146,13 +184,32 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     </>
   )
 
+  const MyPendingCards = () => (
+    <>
+      {myPending.length > 0 && (
+        <div style={{ margin: '0 16px 14px', background: C.blueLight, borderRadius: 14, padding: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.blue, margin: '0 0 8px' }}>⏳ Esperando validación de {other.emoji} {other.name}</p>
+          {myPending.map(item => (
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', borderRadius: 8, padding: '8px 10px', marginBottom: 4 }}>
+              <span>{item.taskIcon}</span>
+              <span style={{ flex: 1, fontSize: 13, color: C.textSec }}>{item.taskName}</span>
+              <span style={{ fontWeight: 700, color: C.blue }}>+{item.pts}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+
   const renderHome = () => (
     <div style={{ padding: '0 0 20px' }}>
       <div style={{ padding: '24px 20px 16px' }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>CouplePoints</h1>
         <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>El hogar tiene reglas, ahora también tiene puntos.</p>
       </div>
+      <NotificationBanner />
       <ValidateCards />
+      <MyPendingCards />
       <div style={{ display: 'flex', gap: 12, padding: '0 16px 16px' }}>
         {players.map(p => (
           <div key={p.id} style={{ flex: 1, background: 'white', borderRadius: 16, padding: 16, textAlign: 'center', border: `${p.id === myPlayer ? 2 : 1.5}px solid ${p.id === myPlayer ? C.purple : C.border}` }}>
@@ -190,7 +247,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           </div>
         )
       })}
-      {history.length === 0 && toValidate.length === 0 && (
+      {history.length === 0 && toValidate.length === 0 && myNotifications.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 32px' }}>
           <p style={{ fontSize: 56, margin: '0 0 16px' }}>🎮</p>
           <p style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: '0 0 8px' }}>¡Empieza a jugar!</p>
@@ -207,18 +264,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <p style={{ fontSize: 13, color: C.textSec, margin: '3px 0 0' }}>Pide validación a {other.emoji} {other.name}</p>
       </div>
       <ValidateCards />
-      {myPending.length > 0 && (
-        <div style={{ margin: '0 16px 14px', background: C.blueLight, borderRadius: 14, padding: 12 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: C.blue, margin: '0 0 8px' }}>⏳ Esperando validación de {other.emoji} {other.name}</p>
-          {myPending.map(item => (
-            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', borderRadius: 8, padding: '8px 10px', marginBottom: 4 }}>
-              <span>{item.taskIcon}</span>
-              <span style={{ flex: 1, fontSize: 13, color: C.textSec }}>{item.taskName}</span>
-              <span style={{ fontWeight: 700, color: C.blue }}>+{item.pts}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <MyPendingCards />
       {[{ label: 'TAREAS DEL HOGAR', tasks: homeTasks }, { label: 'PLANES INCÓMODOS', tasks: socialTasks }].map(({ label, tasks }) => (
         <div key={label} style={{ padding: '0 16px 14px' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: C.textMut, letterSpacing: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>{label}</p>
@@ -327,6 +373,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
             <span style={{ fontSize: 22, position: 'relative', display: 'inline-block' }}>
               {t.icon}
               {t.id === 'earn' && toValidate.length > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.amber, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{toValidate.length}</span>}
+              {t.id === 'home' && myNotifications.length > 0 && <span style={{ position: 'absolute', top: -4, right: -8, background: C.green, color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 5px' }}>{myNotifications.length}</span>}
             </span>
             <span style={{ fontSize: 10, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? C.purple : C.textMut }}>{t.label}</span>
           </button>
