@@ -21,9 +21,10 @@ export function subscribeRoom(roomId: string, cb: (state: RoomState) => void) { 
 export async function updateRoom(roomId: string, partial: Partial<RoomState>) { await update(roomRef(roomId), partial) }
 
 export interface Player { id: number; name: string; emoji: string; points: number; streak: number; totalEarned: number; totalSpent: number }
-export interface PendingTask { id: string; taskName: string; taskIcon: string; pts: number; requestedBy: number; pendingFor: number; timestamp: number; status: 'pending' | 'approved' | 'rejected' }
-export interface HistoryEntry { id: string; type: 'earn' | 'spend' | 'rejected'; playerId: number; label: string; pts: number; timestamp: number; validated?: boolean }
-export interface RoomState { players: Player[]; pending: PendingTask[]; history: HistoryEntry[]; createdAt: number }
+export interface PendingTask { id: string; taskName: string; taskIcon: string; pts: number; requestedBy: number; pendingFor: number; timestamp: number; status: 'pending' | 'approved' | 'rejected'; note?: string }
+export interface HistoryEntry { id: string; type: 'earn' | 'spend' | 'rejected'; playerId: number; label: string; pts: number; timestamp: number; validated?: boolean; note?: string }
+export interface Notification { id: string; forPlayer: number; type: 'approved' | 'rejected'; taskName: string; pts: number; note?: string; timestamp: number; read: boolean }
+export interface RoomState { players: Player[]; pending: PendingTask[]; history: HistoryEntry[]; notifications: Notification[]; createdAt: number }
 
 export function defaultRoomState(name1 = 'Jugador 1', name2 = 'Jugador 2'): RoomState {
   return {
@@ -31,6 +32,6 @@ export function defaultRoomState(name1 = 'Jugador 1', name2 = 'Jugador 2'): Room
       { id: 0, name: name1, emoji: '👩', points: 0, streak: 0, totalEarned: 0, totalSpent: 0 },
       { id: 1, name: name2, emoji: '👨', points: 0, streak: 0, totalEarned: 0, totalSpent: 0 },
     ],
-    pending: [], history: [], createdAt: Date.now(),
+    pending: [], history: [], notifications: [], createdAt: Date.now(),
   }
 }
