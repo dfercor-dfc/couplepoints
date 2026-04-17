@@ -91,8 +91,39 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
 
   const homeTasks = TASKS.filter(t => t.category === 'home')
   const socialTasks = TASKS.filter(t => t.category === 'social')
-  const total = players[0].points + players[1].points
-  const pct0 = total > 0 ? Math.round((players[0].points / total) * 100) : 50
+
+  const PlayerBar = ({ p }: { p: typeof players[0] }) => {
+    const maxVal = Math.max(p.totalEarned ?? 0, 1)
+    const pctEarned = Math.round(((p.points ?? 0) / maxVal) * 100)
+    const pctSpent = Math.round(((p.totalSpent ?? 0) / maxVal) * 100)
+    return (
+      <div style={{ background: 'white', borderRadius: 14, padding: '12px 16px', border: `1px solid ${C.border}`, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 20 }}>{p.emoji}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: 1 }}>{p.name}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.purple }}>{p.points ?? 0} pts disponibles</span>
+        </div>
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+            <span style={{ fontSize: 11, color: C.blue, fontWeight: 600 }}>Disponibles</span>
+            <span style={{ fontSize: 11, color: C.blue, fontWeight: 600 }}>{p.points ?? 0} pts</span>
+          </div>
+          <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 8, background: C.blue, borderRadius: 4, width: `${pctEarned}%`, transition: 'width 0.4s' }} />
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+            <span style={{ fontSize: 11, color: C.red, fontWeight: 600 }}>Gastados</span>
+            <span style={{ fontSize: 11, color: C.red, fontWeight: 600 }}>{p.totalSpent ?? 0} pts</span>
+          </div>
+          <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 8, background: C.red, borderRadius: 4, width: `${pctSpent}%`, transition: 'width 0.4s' }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const ValidateCards = () => (
     <>
@@ -133,20 +164,8 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         ))}
       </div>
       <div style={{ padding: '0 16px 16px' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: C.textMut, letterSpacing: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>COMPARATIVA</p>
-        <div style={{ background: 'white', borderRadius: 14, padding: 16, border: `1px solid ${C.border}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 14, color: C.text }}>{players[0].emoji} {players[0].name}</span>
-            <span style={{ fontSize: 13, color: C.textSec }}>{players[0].points} pts</span>
-          </div>
-          <div style={{ height: 8, background: C.border, borderRadius: 4, margin: '8px 0', overflow: 'hidden' }}>
-            <div style={{ height: 8, background: C.purple, borderRadius: 4, width: `${pct0}%`, transition: 'width 0.4s' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, color: C.text }}>{players[1].emoji} {players[1].name}</span>
-            <span style={{ fontSize: 13, color: C.textSec }}>{players[1].points} pts</span>
-          </div>
-        </div>
+        <p style={{ fontSize: 11, fontWeight: 700, color: C.textMut, letterSpacing: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>ESTADÍSTICAS</p>
+        {players.map(p => <PlayerBar key={p.id} p={p} />)}
       </div>
       <div style={{ padding: '0 16px 16px', display: 'flex', gap: 10 }}>
         <button onClick={() => setShowResetConfirm('points')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
