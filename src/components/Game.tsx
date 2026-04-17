@@ -26,6 +26,9 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [sent, setSent] = useState<Task | null>(null)
   const [success, setSuccess] = useState<Reward | null>(null)
   const [showResetConfirm, setShowResetConfirm] = useState<'points' | 'history' | null>(null)
+  const [validateItem, setValidateItem] = useState<PendingTask | null>(null)
+  const [validateNote, setValidateNote] = useState('')
+  const [validateAction, setValidateAction] = useState<'approve' | 'reject' | null>(null)
 
   const { players, pending = [], history = [], notifications = [] } = roomState
   const me = players[myPlayer]
@@ -44,33 +47,26 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
     await update(ref(db, `rooms/${roomId}`), { pending: [newItem, ...pending] })
   }
 
-  async function approveTask(id: string) {
-    const item = pending.find(p => p.id === id)
-    if (!item) return
-    const updatedPending = pending.map(p => p.id === id ? { ...p, status: 'approved' } : p)
-    const updatedPlayers = players.map(p => p.id === item.requestedBy
-      ? { ...p, points: p.points + item.pts, streak: (p.streak ?? 0) + 1, totalEarned: (p.totalEarned ?? 0) + item.pts }
-      : p)
-    const entry: HistoryEntry = { id: Date.now().toString(), type: 'earn', playerId: item.requestedBy, label: item.taskName, pts: item.pts, timestamp: Date.now(), validated: true }
-    const notif: Notification = { id: `n-${Date.now()}`, forPlayer: item.requestedBy, type: 'approved', taskName: item.taskName, pts: item.pts, timestamp: Date.now(), read: false }
-    await update(ref(db, `rooms/${roomId}`), {
-      pending: updatedPending, players: updatedPlayers,
-      history: [entry, ...history].slice(0, 60),
-      notifications: [notif, ...notifications].slice(0, 20)
-    })
-  }
-
-  async function rejectTask(id: string) {
-    const item = pending.find(p => p.id === id)
-    if (!item) return
-    const updatedPending = pending.map(p => p.id === id ? { ...p, status: 'rejected' } : p)
-    const entry: HistoryEntry = { id: Date.now().toString(), type: 'rejected', playerId: item.requestedBy, label: item.taskName, pts: item.pts, timestamp: Date.now() }
-    const notif: Notification = { id: `n-${Date.now()}`, forPlayer: item.requestedBy, type: 'rejected', taskName: item.taskName, pts: item.pts, timestamp: Date.now(), read: false }
-    await update(ref(db, `rooms/${roomId}`), {
-      pending: updatedPending,
-      history: [entry, ...history].slice(0, 60),
-      notifications: [notif, ...notifications].slice(0, 20)
-    })
+  async function confirmValidate() {
+    if (!validateItem || !validateAction) return
+    const note = validateNote.trim()
+    if (validateAction === 'approve') {
+      const updatedPending = pending.map(p => p.id === validateItem.id ? { ...p, status: 'approved' } : p)
+      const updatedPlayers = players.map(p => p.id === validateItem.requestedBy
+        ? { ...p, points: p.points + validateItem.pts, streak: (p.streak ?? 0) + 1, totalEarned: (p.totalEarned ?? 0) + validateItem.pts }
+        : p)
+      const entry: HistoryEntry = { id: Date.now().toString(), type: 'earn', playerId: validateItem.requestedBy, label: validateItem.taskName, pts: validateItem.pts, timestamp: Date.now(), validated: true, note }
+      const notif: Notification = { id: `n-${Date.now()}`, forPlayer: validateItem.requestedBy, type: 'approved', taskName: validateItem.taskName, pts: validateItem.pts, note, timestamp: Date.now(), read: false }
+      await update(ref(db, `rooms/${roomId}`), { pending: updatedPending, players: updatedPlayers, history: [entry, ...history].slice(0, 60), notifications: [notif, ...notifications].slice(0, 20) })
+    } else {
+      const updatedPending = pending.map(p => p.id === validateItem.id ? { ...p, status: 'rejected' } : p)
+      const entry: HistoryEntry = { id: Date.now().toString(), type: 'rejected', playerId: validateItem.requestedBy, label: validateItem.taskName, pts: validateItem.pts, timestamp: Date.now(), note }
+      const notif: Notification = { id: `n-${Date.now()}`, forPlayer: validateItem.requestedBy, type: 'rejected', taskName: validateItem.taskName, pts: validateItem.pts, note, timestamp: Date.now(), read: false }
+      await update(ref(db, `rooms/${roomId}`), { pending: updatedPending, history: [entry, ...history].slice(0, 60), notifications: [notif, ...notifications].slice(0, 20) })
+    }
+    setValidateItem(null)
+    setValidateNote('')
+    setValidateAction(null)
   }
 
   async function dismissNotifications() {
@@ -144,19 +140,26 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const NotificationBanner = () => {
     if (myNotifications.length === 0) return null
     return (
-      <div style={{ margin: '0 16px 14px', borderRadius: 16, overflow: 'hidden' }}>
+      <div style={{ margin: '0 16px 14px' }}>
         {myNotifications.map(n => (
-          <div key={n.id} style={{ background: n.type === 'approved' ? C.greenLight : C.redLight, border: `1.5px solid ${n.type === 'approved' ? C.green : C.red}`, borderRadius: 14, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 28 }}>{n.type === 'approved' ? '✅' : '❌'}</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: n.type === 'approved' ? C.green : C.red, margin: 0 }}>
-                {n.type === 'approved' ? `¡${other.name} aprobó tu tarea!` : `${other.name} rechazó tu tarea`}
-              </p>
-              <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>
-                {n.taskName} · {n.type === 'approved' ? `+${n.pts} puntos` : 'sin puntos'}
-              </p>
+          <div key={n.id} style={{ background: n.type === 'approved' ? C.greenLight : C.redLight, border: `1.5px solid ${n.type === 'approved' ? C.green : C.red}`, borderRadius: 14, padding: 14, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 28 }}>{n.type === 'approved' ? '✅' : '❌'}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: n.type === 'approved' ? C.green : C.red, margin: 0 }}>
+                  {n.type === 'approved' ? `¡${other.name} aprobó tu tarea!` : `${other.name} rechazó tu tarea`}
+                </p>
+                <p style={{ fontSize: 13, color: C.textSec, margin: '2px 0 0' }}>
+                  {n.taskName} · {n.type === 'approved' ? `+${n.pts} puntos` : 'sin puntos'}
+                </p>
+              </div>
+              <button onClick={dismissNotifications} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: C.textMut, padding: 4 }}>✕</button>
             </div>
-            <button onClick={dismissNotifications} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: C.textMut, padding: 4 }}>✕</button>
+            {n.note && (
+              <div style={{ marginTop: 8, background: 'white', borderRadius: 8, padding: '8px 12px' }}>
+                <p style={{ fontSize: 12, color: C.textSec, margin: 0, fontStyle: 'italic' }}>💬 "{n.note}"</p>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -175,8 +178,8 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
                 <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{item.taskName}</p>
                 <p style={{ fontSize: 12, color: C.textSec, margin: '2px 0 0' }}>+{item.pts} puntos</p>
               </div>
-              <button onClick={() => rejectTask(item.id)} style={{ width: 36, height: 36, borderRadius: 18, background: C.redLight, border: 'none', fontSize: 14, fontWeight: 800, color: C.red, cursor: 'pointer' }}>✕</button>
-              <button onClick={() => approveTask(item.id)} style={{ width: 36, height: 36, borderRadius: 18, background: C.greenLight, border: 'none', fontSize: 14, fontWeight: 800, color: C.green, cursor: 'pointer' }}>✓</button>
+              <button onClick={() => { setValidateItem(item); setValidateAction('reject'); setValidateNote('') }} style={{ width: 36, height: 36, borderRadius: 18, background: C.redLight, border: 'none', fontSize: 14, fontWeight: 800, color: C.red, cursor: 'pointer' }}>✕</button>
+              <button onClick={() => { setValidateItem(item); setValidateAction('approve'); setValidateNote('') }} style={{ width: 36, height: 36, borderRadius: 18, background: C.greenLight, border: 'none', fontSize: 14, fontWeight: 800, color: C.green, cursor: 'pointer' }}>✓</button>
             </div>
           ))}
         </div>
@@ -225,25 +228,24 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         {players.map(p => <PlayerBar key={p.id} p={p} />)}
       </div>
       <div style={{ padding: '0 16px 16px', display: 'flex', gap: 10 }}>
-        <button onClick={() => setShowResetConfirm('points')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>
-          🔄 Resetear puntos
-        </button>
-        <button onClick={() => setShowResetConfirm('history')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}>
-          🗑️ Borrar historial
-        </button>
+        <button onClick={() => setShowResetConfirm('points')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.red}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.red, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Resetear puntos</button>
+        <button onClick={() => setShowResetConfirm('history')} style={{ flex: 1, padding: '10px 8px', background: 'white', border: `1px solid ${C.textMut}`, borderRadius: 12, fontSize: 12, fontWeight: 600, color: C.textMut, cursor: 'pointer', fontFamily: 'inherit' }}>🗑️ Borrar historial</button>
       </div>
       {history.slice(0, 4).map(entry => {
         const player = players.find(p => p.id === entry.playerId)
         const isEarn = entry.type === 'earn'
         const isRej = entry.type === 'rejected'
         return (
-          <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ width: 8, height: 8, borderRadius: 4, background: isRej ? C.textMut : isEarn ? C.green : C.red }} />
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 500, color: isRej ? C.textMut : C.text, margin: 0, textDecoration: isRej ? 'line-through' : 'none' }}>{entry.label}</p>
-              <p style={{ fontSize: 11, color: C.textMut, margin: '2px 0 0' }}>{player?.emoji} {player?.name}{isEarn && entry.validated ? ' · ✓ validado' : ''}{isRej ? ' · rechazado' : ''}</p>
+          <div key={entry.id} style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: isRej ? C.textMut : isEarn ? C.green : C.red }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 500, color: isRej ? C.textMut : C.text, margin: 0, textDecoration: isRej ? 'line-through' : 'none' }}>{entry.label}</p>
+                <p style={{ fontSize: 11, color: C.textMut, margin: '2px 0 0' }}>{player?.emoji} {player?.name}{isEarn && entry.validated ? ' · ✓ validado' : ''}{isRej ? ' · rechazado' : ''}</p>
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
+            {entry.note && <p style={{ fontSize: 12, color: C.textSec, margin: '6px 0 0 18px', fontStyle: 'italic' }}>💬 "{entry.note}"</p>}
           </div>
         )
       })}
@@ -339,13 +341,16 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           const isEarn = entry.type === 'earn'
           const isRej = entry.type === 'rejected'
           return (
-            <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: isRej ? C.textMut : isEarn ? C.green : C.red }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 14, fontWeight: 500, color: isRej ? C.textMut : C.text, margin: 0, textDecoration: isRej ? 'line-through' : 'none' }}>{entry.label}</p>
-                <p style={{ fontSize: 11, color: C.textMut, margin: '2px 0 0' }}>{player?.emoji} {player?.name}{isEarn && entry.validated ? ' · ✓' : ''}{isRej ? ' · rechazado' : ''} · {new Date(entry.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+            <div key={entry.id} style={{ padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: isRej ? C.textMut : isEarn ? C.green : C.red }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: isRej ? C.textMut : C.text, margin: 0, textDecoration: isRej ? 'line-through' : 'none' }}>{entry.label}</p>
+                  <p style={{ fontSize: 11, color: C.textMut, margin: '2px 0 0' }}>{player?.emoji} {player?.name}{isEarn && entry.validated ? ' · ✓' : ''}{isRej ? ' · rechazado' : ''} · {new Date(entry.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
               </div>
-              <span style={{ fontSize: 15, fontWeight: 700, color: isRej ? C.textMut : isEarn ? C.green : C.red }}>{isEarn ? '+' : isRej ? '' : '-'}{entry.pts}</span>
+              {entry.note && <p style={{ fontSize: 12, color: C.textSec, margin: '6px 0 0 18px', fontStyle: 'italic' }}>💬 "{entry.note}"</p>}
             </div>
           )
         })}
@@ -379,6 +384,34 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           </button>
         ))}
       </nav>
+
+      {/* Modal validar con nota */}
+      {validateItem && modal(<>
+        <span style={{ fontSize: 52 }}>{validateItem.taskIcon}</span>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{validateItem.taskName}</h3>
+        <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>
+          {validateAction === 'approve' ? `¿Confirmas que ${other.name} lo ha hecho?` : `¿Rechazas la tarea de ${other.name}?`}
+        </p>
+        <div style={{ width: '100%', background: validateAction === 'approve' ? C.greenLight : C.redLight, borderRadius: 10, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, color: C.textSec }}>{validateAction === 'approve' ? 'Puntos a dar' : 'Puntos denegados'}</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: validateAction === 'approve' ? C.green : C.red }}>{validateAction === 'approve' ? '+' : ''}{validateItem.pts}</span>
+        </div>
+        <div style={{ width: '100%' }}>
+          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Añade un comentario (opcional)</p>
+          <textarea
+            value={validateNote}
+            onChange={e => setValidateNote(e.target.value)}
+            placeholder={validateAction === 'approve' ? 'Ej: Muy bien hecho, gracias 😊' : 'Ej: La sartén seguía sucia 😅'}
+            maxLength={100}
+            rows={2}
+            style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box', color: C.text }}
+          />
+        </div>
+        <button onClick={confirmValidate} style={{ width: '100%', padding: 14, background: validateAction === 'approve' ? C.green : C.red, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {validateAction === 'approve' ? '✓ Aprobar tarea' : '✕ Rechazar tarea'}
+        </button>
+        <button onClick={() => { setValidateItem(null); setValidateNote('') }} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
+      </>)}
 
       {showResetConfirm === 'points' && modal(<>
         <span style={{ fontSize: 52 }}>🔄</span>
