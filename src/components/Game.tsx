@@ -19,7 +19,7 @@ const C = {
   text: '#1A1A2E', textSec: '#6B6B8A', textMut: '#A0A0B8', border: '#EBEBF5',
 }
 
-const TASK_EMOJIS = ['🏠','🧹','🛒','🍳','🚗','🔧','📋','🌿','🐕','🧺','👶','🎂','🏋️','📚','🎨','🛁','🌅','🍽️','🎯','💡','🍻','⚽','🎮','🃏','😴','🌅','✈️','💅','🎲','💆','📺','👯','🛍️']
+const TASK_EMOJIS = ['🏠','🧹','🛒','🍳','🚗','🔧','📋','🌿','🐕','🧺','👶','🎂','🏋️','📚','🎨','🛁','🌅','🍽️','🎯','💡','🍻','⚽','🎮','🃏','😴','✈️','💅','🎲','💆','📺','👯','🛍️']
 
 export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [tab, setTab] = useState<Tab>('home')
@@ -32,7 +32,6 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [validateNote, setValidateNote] = useState('')
   const [validateAction, setValidateAction] = useState<'approve' | 'reject' | null>(null)
 
-  // Custom task
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [newTaskName, setNewTaskName] = useState('')
   const [newTaskDesc, setNewTaskDesc] = useState('')
@@ -43,7 +42,6 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const [counterTaskPts, setCounterTaskPts] = useState('')
   const [counterTaskMsg, setCounterTaskMsg] = useState('')
 
-  // Custom reward
   const [showCreateReward, setShowCreateReward] = useState(false)
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardDesc, setNewRewardDesc] = useState('')
@@ -98,7 +96,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   }
 
   async function counterProposeTask(task: CustomTask) {
-    if (!counterTaskPts) return
+    if (!counterTaskPts || parseInt(counterTaskPts) <= 0) return
     const pts = parseInt(counterTaskPts)
     const otherId = myPlayer === 0 ? 1 : 0
     const newRound: NegotiationRound = { proposedBy: myPlayer, pts, timestamp: Date.now(), message: counterTaskMsg.trim() || undefined }
@@ -136,7 +134,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   }
 
   async function counterProposeReward(reward: CustomReward) {
-    if (!counterRewardPts) return
+    if (!counterRewardPts || parseInt(counterRewardPts) <= 0) return
     const pts = parseInt(counterRewardPts)
     const otherId = myPlayer === 0 ? 1 : 0
     const newRound: NegotiationRound = { proposedBy: myPlayer, pts, timestamp: Date.now(), message: counterRewardMsg.trim() || undefined }
@@ -247,10 +245,11 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   }
 
   const NotificationBanner = () => {
-    if (myNotifications.filter(n => n.type !== 'task_negotiation' && n.type !== 'reward_negotiation').length === 0) return null
+    const visible = myNotifications.filter(n => n.type !== 'task_negotiation' && n.type !== 'reward_negotiation')
+    if (visible.length === 0) return null
     return (
       <div style={{ margin: '0 16px 14px' }}>
-        {myNotifications.filter(n => n.type !== 'task_negotiation' && n.type !== 'reward_negotiation').map(n => (
+        {visible.map(n => (
           <div key={n.id} style={{ background: n.type === 'approved' ? C.greenLight : C.redLight, border: `1.5px solid ${n.type === 'approved' ? C.green : C.red}`, borderRadius: 14, padding: 14, marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 28 }}>{n.type === 'approved' ? '✅' : '❌'}</span>
@@ -326,7 +325,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
   const RewardNegotiationCards = () => (
     <>
       {myRewardNegotiations.length > 0 && (
-        <div style={{ margin: '0 16px 14px', background: '#FEF0EB', border: `1.5px solid ${C.red}`, borderRadius: 16, padding: 12 }}>
+        <div style={{ margin: '0 16px 14px', background: C.redLight, border: `1.5px solid ${C.red}`, borderRadius: 16, padding: 12 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 10px' }}>🎁 {other.emoji} {other.name} propone una recompensa</p>
           {myRewardNegotiations.map(reward => {
             const lastRound = reward.rounds[reward.rounds.length - 1]
@@ -619,7 +618,6 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         ))}
       </nav>
 
-      {/* Modal crear tarea personalizada */}
       {showCreateTask && modal(<>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>Proponer tarea</h3>
         <p style={{ fontSize: 13, color: C.textSec, margin: 0, textAlign: 'center' }}>Propón una tarea y negocia los puntos con {other.emoji} {other.name}</p>
@@ -633,7 +631,6 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <button onClick={() => setShowCreateTask(false)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
-      {/* Modal crear recompensa personalizada */}
       {showCreateReward && modal(<>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>Proponer recompensa</h3>
         <p style={{ fontSize: 13, color: C.textSec, margin: 0, textAlign: 'center' }}>Propón una recompensa y negocia el coste con {other.emoji} {other.name}</p>
@@ -647,31 +644,34 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
         <button onClick={() => setShowCreateReward(false)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
-      {/* Modal contrapropuesta tarea */}
       {negotiatingTask && modal(<>
         <span style={{ fontSize: 52 }}>{negotiatingTask.icon}</span>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{negotiatingTask.name}</h3>
         <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>{other.emoji} {other.name} propone <strong>{negotiatingTask.currentPts} puntos</strong>. ¿Cuánto propones tú?</p>
         <PtsSelector value={counterTaskPts} onChange={setCounterTaskPts} />
-        <textarea value={counterTaskMsg} onChange={e => setCounterTaskMsg(e.target.value)} placeholder="Mensaje opcional..." maxLength={80} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const }} />
+        <div style={{ width: '100%' }}>
+          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Mensaje opcional</p>
+          <textarea value={counterTaskMsg} onChange={e => setCounterTaskMsg(e.target.value)} placeholder="Ej: Me parece poco para lo que cuesta..." maxLength={80} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const }} />
+        </div>
         <p style={{ fontSize: 11, color: C.textMut, margin: 0 }}>Ronda {negotiatingTask.rounds.length} de 3</p>
-        <button onClick={() => counterProposeTask(negotiatingTask)} disabled={!counterTaskPts} style={{ width: '100%', padding: 14, background: C.amber, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !counterTaskPts ? 0.5 : 1 }}>Enviar contrapropuesta</button>
+        <button onClick={() => counterProposeTask(negotiatingTask)} disabled={!counterTaskPts || parseInt(counterTaskPts) <= 0} style={{ width: '100%', padding: 14, background: C.amber, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !counterTaskPts || parseInt(counterTaskPts) <= 0 ? 0.5 : 1 }}>Enviar contrapropuesta</button>
         <button onClick={() => setNegotiatingTask(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
-      {/* Modal contrapropuesta recompensa */}
       {negotiatingReward && modal(<>
         <span style={{ fontSize: 52 }}>{negotiatingReward.icon}</span>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{negotiatingReward.name}</h3>
         <p style={{ fontSize: 14, color: C.textSec, margin: 0, textAlign: 'center' }}>{other.emoji} {other.name} propone <strong>{negotiatingReward.currentPts} puntos</strong>. ¿Cuánto propones tú?</p>
         <PtsSelector value={counterRewardPts} onChange={setCounterRewardPts} />
-        <textarea value={counterRewardMsg} onChange={e => setCounterRewardMsg(e.target.value)} placeholder="Mensaje opcional..." maxLength={80} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const }} />
+        <div style={{ width: '100%' }}>
+          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Mensaje opcional</p>
+          <textarea value={counterRewardMsg} onChange={e => setCounterRewardMsg(e.target.value)} placeholder="Ej: Es demasiado barato para lo que pides..." maxLength={80} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const }} />
+        </div>
         <p style={{ fontSize: 11, color: C.textMut, margin: 0 }}>Ronda {negotiatingReward.rounds.length} de 3</p>
-        <button onClick={() => counterProposeReward(negotiatingReward)} disabled={!counterRewardPts} style={{ width: '100%', padding: 14, background: C.amber, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !counterRewardPts ? 0.5 : 1 }}>Enviar contrapropuesta</button>
+        <button onClick={() => counterProposeReward(negotiatingReward)} disabled={!counterRewardPts || parseInt(counterRewardPts) <= 0} style={{ width: '100%', padding: 14, background: C.amber, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !counterRewardPts || parseInt(counterRewardPts) <= 0 ? 0.5 : 1 }}>Enviar contrapropuesta</button>
         <button onClick={() => setNegotiatingReward(null)} style={{ background: 'none', border: 'none', color: C.textSec, fontSize: 15, cursor: 'pointer', padding: 8, fontFamily: 'inherit' }}>Cancelar</button>
       </>)}
 
-      {/* Modal validar con nota */}
       {validateItem && modal(<>
         <span style={{ fontSize: 52 }}>{validateItem.taskIcon}</span>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0, textAlign: 'center' }}>{validateItem.taskName}</h3>
@@ -681,7 +681,7 @@ export function Game({ roomId, myPlayer, roomState, onLeave }: Props) {
           <span style={{ fontSize: 20, fontWeight: 700, color: validateAction === 'approve' ? C.green : C.red }}>{validateAction === 'approve' ? '+' : ''}{validateItem.pts}</span>
         </div>
         <div style={{ width: '100%' }}>
-          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Añade un comentario (opcional)</p>
+          <p style={{ fontSize: 12, color: C.textMut, margin: '0 0 6px' }}>💬 Comentario opcional</p>
           <textarea value={validateNote} onChange={e => setValidateNote(e.target.value)} placeholder={validateAction === 'approve' ? 'Ej: Muy bien hecho 😊' : 'Ej: La sartén seguía sucia 😅'} maxLength={100} rows={2} style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' as const, color: C.text }} />
         </div>
         <button onClick={confirmValidate} style={{ width: '100%', padding: 14, background: validateAction === 'approve' ? C.green : C.red, color: 'white', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
