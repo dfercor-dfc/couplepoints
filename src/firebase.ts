@@ -26,26 +26,20 @@ export interface PendingTask { id: string; taskName: string; taskIcon: string; p
 
 export interface HistoryEntry { id: string; type: 'earn' | 'spend' | 'rejected'; playerId: number; label: string; pts: number; timestamp: number; validated?: boolean; note?: string }
 
-export interface Notification { id: string; forPlayer: number; type: 'approved' | 'rejected' | 'task_negotiation'; taskName: string; pts: number; note?: string; timestamp: number; read: boolean }
+export interface Notification { id: string; forPlayer: number; type: 'approved' | 'rejected' | 'task_negotiation' | 'reward_negotiation'; taskName: string; pts: number; note?: string; timestamp: number; read: boolean }
+
+export interface NegotiationRound { proposedBy: number; pts: number; timestamp: number; message?: string }
 
 export interface CustomTask {
-  id: string
-  name: string
-  desc: string
-  pts: number
-  icon: string
-  createdBy: number
+  id: string; name: string; desc: string; pts: number; icon: string; createdBy: number
   status: 'negotiating' | 'accepted' | 'rejected'
-  rounds: NegotiationRound[]
-  currentPts: number
-  pendingFor: number
+  rounds: NegotiationRound[]; currentPts: number; pendingFor: number
 }
 
-export interface NegotiationRound {
-  proposedBy: number
-  pts: number
-  timestamp: number
-  message?: string
+export interface CustomReward {
+  id: string; name: string; desc: string; pts: number; icon: string; createdBy: number
+  status: 'negotiating' | 'accepted' | 'rejected'
+  rounds: NegotiationRound[]; currentPts: number; pendingFor: number
 }
 
 export interface RoomState {
@@ -54,6 +48,7 @@ export interface RoomState {
   history: HistoryEntry[]
   notifications: Notification[]
   customTasks: CustomTask[]
+  customRewards: CustomReward[]
   createdAt: number
 }
 
@@ -63,6 +58,6 @@ export function defaultRoomState(name1 = 'Jugador 1', name2 = 'Jugador 2'): Room
       { id: 0, name: name1, emoji: '👩', points: 0, streak: 0, totalEarned: 0, totalSpent: 0 },
       { id: 1, name: name2, emoji: '👨', points: 0, streak: 0, totalEarned: 0, totalSpent: 0 },
     ],
-    pending: [], history: [], notifications: [], customTasks: [], createdAt: Date.now(),
+    pending: [], history: [], notifications: [], customTasks: [], customRewards: [], createdAt: Date.now(),
   }
 }
